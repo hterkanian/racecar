@@ -40,27 +40,16 @@ class HSTPDControllerNode:
         self.error_list                     = []
         self.error_times        	    = []
 
-        # ROS topic subscriptions & publications
+        # ==============ROS topic subscriptions & publications=================
         # subscribe to lidar /scan input
         rospy.Subscriber( "/scan", LaserScan, self.scan_callback )
 
-##        # subscribe to odometer /odom output
-##        rospy.Subscriber( "/odom", Odometry, self.odom_callback )
-##
-        # publisher for Ackermann drive /navigation topic
+        # publish Ackermann drive /navigation topic
         self.cmd_pub = rospy.Publisher( 
                         "/ackermann_cmd_mux/input/navigation", 
                         AckermannDriveStamped, queue_size = 10 )
 
-    # ==================class method definitions (functions)===================
-##    def odom_callback( self, msg ):
-##        # callback method for /odom topic; calculates velocity from x & y velocities
-##        self.odom_msg = msg         # copy /odom message to local attribute
-##        self.velocity = math.sqrt( self.odom_msg.twist.twist.linear.x ** 2 +
-##                        self.odom_msg.twist.twist.linear.y ** 2 )
-##        if self.debug_switch:
-##            print("velocity: %.2f" % self.velocity )
-##
+    # =================class top level methods=================================
     def scan_callback( self, msg ):
         """callback method for /scan topic"""
         self.scan_msg = msg
@@ -171,12 +160,6 @@ class HSTPDControllerNode:
 	    return_val = 0
         return return_val
     
-##    def calculate_error_derivative( self ):
-##        """ calculates from slope of wall in self.error_distance[1] and velocity in self.velocity;
-##        velocity perpindicular to wall is derivataive of error distance."""
-##        return self.velocity * math.sin( math.tan( self.error_distance[1] ) )
-##
-
 if __name__ == "__main__":
     rospy.init_node( "hst_pd_controller", anonymous = True )
     node = HSTPDControllerNode()
