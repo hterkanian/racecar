@@ -8,25 +8,26 @@ from sensor_msgs.msg import Image
 
 class HSTImageViewerNode:
 
-	def __init__( self ):
 
-		# ROS topic subscriptions & publications
-		# subscribe to /zed/rgb/image_rect_color
-		rospy.Subscriber( "/camera/rgb/image_rect_color", Image, self.camera_callback )
+    def __init__(self):
+        # ROS topic subscriptions & publications
+        # subscribe to /zed/rgb/image_rect_color
+        rospy.Subscriber("/camera/rgb/image_rect_color", 
+            Image, self.camera_callback)
+        # publish image
+        self.pub_cmd = rospy.Publisher("/hst/image_pub", 
+            Image, queue_size = 10)
+        print("=====starting====")
 
-		self.pub_cmd = rospy.Publisher( "/hst/image_pub", Image, queue_size = 10 )
 
-		print("=====starting====")
+    def camera_callback(self, msg):
+        """receives and republishes an image."""
+        print("image republished")
+        self.msg = msg
+        self.pub_cmd.publish(self.msg)
 
-	def camera_callback( self, msg ):
-		print("image republished")
-		self.msg = msg
-		self.pub_cmd.publish( self.msg )
 
 if __name__ == "__main__":
-	rospy.init_node( "hst_image_viewer", anonymous = True )
-	node = HSTImageViewerNode()
-	rospy.spin()
-
-
-
+    rospy.init_node("hst_image_viewer", anonymous = True)
+    node = HSTImageViewerNode()
+    rospy.spin()

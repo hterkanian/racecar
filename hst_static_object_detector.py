@@ -20,6 +20,7 @@ import cv2
 import numpy as np
 import sys
 
+
 class StaticObjectDetector:
 
     HSV_RANGES = [np.zeros(3,dtype=np.uint8),np.zeros(3,dtype=np.uint8)]
@@ -45,11 +46,13 @@ class StaticObjectDetector:
             image = self.image
         cv2.imshow(window, image)
 
+
     def startDisplay(self, time=0):
         """ (completed helper function)
         start display after loading image with self.show
         """
         cv2.waitKey(time)
+
         
     def clear(self, window=None):
         """ (completed helper function)
@@ -70,6 +73,7 @@ class StaticObjectDetector:
         min_val = np.array(min_hsv, np.uint8)
         max_val = np.array(max_hsv, np.uint8)
         self.HSV_RANGES = [min_val, max_val]
+
 
     def detect(self, debug=True):
         """ (completed helper function)
@@ -95,21 +99,26 @@ class StaticObjectDetector:
             self.clear()
         return largest_contour
 
+
     def convertToHSV(self, image):
         return cv2.cvtColor( image, cv2.COLOR_BGR2HSV )
+
 
     def thresholdImage(self, image):
         return cv2.inRange(image, self.HSV_RANGES[0], self.HSV_RANGES[1])
 
 
     def getContours(self, image):
-        img_mod, contours, hierarchy = cv2.findContours( image, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
+        img_mod, contours, hierarchy = cv2.findContours(image, 
+            cv2.RETR_CCOMP, cv2.CHAIN_APPROX_SIMPLE)
         img = self.image.copy()
         cv2.drawContours(img, contours, -1,  (0, 255, 0), 3)
         return contours, img
 
+
     def getKey(self, item):
         return item[1]
+
     
     def sortContours(self, contours):
         print len(contours)
@@ -120,21 +129,9 @@ class StaticObjectDetector:
         sorted_list = sorted( contour_list, key=self.getKey, reverse=True)
         for i in range(len(sorted_list)):
             result.append(sorted_list[i][1])
-        return result
+        return result    
 
-    
-    
 
 if __name__=="__main__":
     sod = StaticObjectDetector('cone.png')
     sod.detect()
-
-
-
-
-
-
-
-    
-
-

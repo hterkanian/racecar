@@ -10,9 +10,11 @@ import rospy
 import tf
 from gazebo_msgs.msg import ModelStates
 
+
 class HSTGroundTruthNode:
 
-    def __init__( self ):
+
+    def __init__(self):
 
         #=====state variables===================================
         self.world_frames = []          # list of world_frames
@@ -20,25 +22,37 @@ class HSTGroundTruthNode:
 
 
         #=====ROS subscriptions=================================
-        rospy.Subscriber( "/gazebo/model_states", ModelStates, self.model_state_callback )
+        rospy.Subscriber("/gazebo/model_states", 
+            ModelStates, 
+            self.model_state_callback)
 
         #=====ROS tf broadcaster================================
         self.broadcaster = tf.TransformBroadcaster()
 
-    def model_state_callback( self, state_msg ):
+
+    def model_state_callback(self, state_msg):
         self.state_msg = state_msg
 
         if self.first_time:
             for state in self.state_msg.name:
-                self.world_frames.append( state )
-            print( self.world_frames )
+                self.world_frames.append(state)
+            print(self.world_frames)
             self.first_time = False
 
-        print( self.state_msg.pose[2] )
+        print(self.state_msg.pose[2])
         self.broadcastTF( self.state_msg.pose[2] )
             
-    def broadcastTF( self, msg ):
-        self.broadcaster.sendTransform( ( msg.position.x, msg.position.y, 0 ), ( msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w ), rospy.Time(), "racecar", "world" )
+
+    def broadcastTF(self, msg):
+        self.broadcaster.sendTransform((msg.position.x, 
+            msg.position.y, 0), \
+            (msg.orientation.x, 
+            msg.orientation.y, 
+            msg.orientation.z, 
+            msg.orientation.w), 
+            rospy.Time(), 
+            "racecar", 
+            "world")
 
 
 if __name__ == "__main__":

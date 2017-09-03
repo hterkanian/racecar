@@ -7,10 +7,10 @@ img = cv2.imread('Downloads/heat_map.jpg')
 print(img.shape)
 half_width  = img.shape[1] // 2
 half_height = img.shape[0] // 2
-upper_left 	= img[ :half_height , :half_width ]
-upper_right = img[ :half_height , half_width: ]
-lower_left 	= img[ half_height: , :half_width ]
-lower_right = img[ half_height: , half_width: ]
+upper_left 	= img[:half_height , :half_width]
+upper_right = img[:half_height , half_width:]
+lower_left 	= img[half_height: , :half_width]
+lower_right = img[half_height: , half_width:]
 
 plt.subplot(221), plt.imshow(upper_left), plt.title('upper left')
 plt.subplot(222), plt.imshow(upper_right), plt.title('upper right')
