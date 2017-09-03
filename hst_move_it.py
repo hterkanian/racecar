@@ -30,8 +30,21 @@ class MoveItNode:
 if __name__ == "__main__":
 	rospy.init_node( "hst_steering_controller", anonymous = True )
 	node = MoveItNode()
-
-# add code to accept input from command line or quit
+	continue_loop = True
+	while continue_loop:
+		command = raw_input("Enter speed, steering angle and duration: as speed, angle, duration")
+		if command == "quit":
+			continue_loop = False
+		else:
+			command_list = command.split()
+			if len(command_list) == 3:
+				for arg in command_list:
+					if !arg.isnumeric()
+						print( "arg %.2d must be numeric" % arg)
+						break
+				move( command_list[0], command_list[1], command_list[2])
+			else:
+				print( "please input three numbers: speed, steering angle and duration")
 
 # start moving in a circle (duration in seconds)
 # move(speed=1, steering_angle=0.6, duration=5)
