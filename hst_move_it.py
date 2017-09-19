@@ -15,7 +15,7 @@ class MoveItNode:
         self.msg = AckermannDriveStamped()
         self.msg.header.frame_id = '/base_link'
         self.cmd_pub = rospy.Publisher(
-                    "/ackermann_cmd_mux/input/navigation",
+                    "/vesc/ackermann_cmd_mux/input/navigation",
                     AckermannDriveStamped,
                     queue_size = 10
                     )
@@ -27,14 +27,14 @@ class MoveItNode:
         start_time = rospy.Time.now()
         duration_obj =  rospy.Duration(int(duration))
         while not (rospy.is_shutdown() 
-                    and 
-                    start_time + duration_obj > rospy.Time.now()
+                    or 
+                    rospy.Time.now() > duration_obj + start_time
                     ):
-            t = rospy.Time.now()
+            t = rospy.Time.now() -  start_time
             self.msg.header.stamp.secs = t.to_sec()
             self.msg.header.stamp.nsecs = t.to_nsec()
-            self.msg.drive.steering_angle = steering_angle
-            self.msg.drive.speed = speed
+            self.msg.drive.steering_angle = float(steering_angle)
+            self.msg.drive.speed = float(speed) 
             self.cmd_pub.publish(self.msg)
             print(self.msg)
             rate = rospy.Rate(10)   #rate in Hz
