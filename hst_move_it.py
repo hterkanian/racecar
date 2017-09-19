@@ -2,6 +2,7 @@
 # July 26, 2017
 
 import rospy
+import re
 from ackermann_msgs.msg import AckermannDriveStamped
 
 
@@ -9,50 +10,78 @@ class MoveItNode:
 
 
     def __init__( self ):
+        self.digit_test = re.compile('-?\d?[.]?\d$|-?\d*[.]\d?')
         # initialize the message using the arguments provided
-        msg = AckermannDriveStamped()
-        msg.drive.speed = speed
-        msg.drive.steering_angle = steering_angle
-        # pretty sure this is what the frame_id should be?
-        # probably doesn't really matter, don't think it's used for anything
-        msg.header.frame_id = '/base_link'
+        self.msg = AckermannDriveStamped()
+        self.msg.header.frame_id = '/base_link'
+        self.cmd_pub = rospy.Publisher(
+                    "/ackermann_cmd_mux/input/navigation",
+                    AckermannDriveStamped,
+                    queue_size = 10
+                    )
 
 
-    def move(speed, steering_angle, duration):
+    def move(self, speed, steering_angle, duration):
         # continue publishing our move message until
         # either the robot shuts down or the timer runs out
-        start_time = time()
-        while not rospy.is_shutdown() and start_time + duration > time():
-            msg.header.stamp = rospy.Time.now()
-            pub.publish(msg)
-            # makes the loop run only 10 times a second (configurable)
-            r = rospy.Rate(10)
+        start_time = rospy.Time.now()
+        duration_obj =  rospy.Duration(int(duration))
+        while not (rospy.is_shutdown() 
+                    and 
+                    start_time + duration_obj > rospy.Time.now()
+                    ):
+            t = rospy.Time.now()
+            self.msg.header.stamp.secs = t.to_sec()
+            self.msg.header.stamp.nsecs = t.to_nsec()
+            self.msg.drive.steering_angle = steering_angle
+            self.msg.drive.speed = speed
+            self.cmd_pub.publish(self.msg)
+            print(self.msg)
+            rate = rospy.Rate(10)   #rate in Hz
+            rate.sleep()
 
-            loginfo('Done move (speed %s, steering_angle %s, duration %s)',
-                speed,
-                steering_angle,
-                duration)
+
+    def get_input(self):
+        while True:
+            raw_steering_angle = raw_input(
+                        "Enter steering angle or Q to quit: ")
+            raw_steering_angle = raw_steering_angle.strip()
+            if raw_steering_angle.upper() == "Q":
+                break
+            raw_speed = raw_input("Enter speed: ")
+            raw_duration = raw_input("Enter duration: ")
+            steering_angle_match = self.digit_test.match(raw_steering_angle)
+            input_OK = True
+            if not steering_angle_match:
+                print( "steering angle is: %s must be numeric" 
+                        % raw_steering_angle)
+                input_OK = False
+            else:
+                steering_angle = steering_angle_match.group()
+            speed_match =  self.digit_test.match(raw_speed)
+            if not speed_match:
+                print("Speed is: %s, must be numeric" 
+                        % raw_speed.strip())
+                input_OK = False
+            else:
+                speed = speed_match.group()
+            duration_match = self.digit_test.match(raw_duration)
+            if not duration_match:
+                print("Duration is: %s, must be numeric" 
+                        % raw_duration.strip())
+                input_OK = False
+            else:
+                duration = duration_match.group()
+            if input_OK:
+                print("Steering angle: %s, speed: %s, duration: %s"
+                        % (steering_angle, speed, duration))
+                self.move(speed, steering_angle, duration)
 
 
 if __name__ == "__main__":
     rospy.init_node("moveItNode", anonymous = True)
     node = MoveItNode()
-
-    while True:
-        steering_angle = raw_input("Enter steering angle or Q to quit")
-        speed = raw_input("Enter speed")
-        duration = raw_input("Enter duration")
-        if steering_angle == "Q":
-            break
-        else:
-            if not steering_angle.isnumeric():
-                print( "steering angle is: %.2d must be numeric" % steering_angle)
-            elif not speed.isnumeric():
-                print("Speed is: %.2d, must be numeric" % speed)
-            elif not  duration.isnumeric():
-                print("Duration is: %.2d, must be numeric" % duration)
-            else:
-                move(speed, steering_angle, duration)
+    node.get_input()
 
 
 # start moving in a circle (duration in seconds)
