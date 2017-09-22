@@ -1,5 +1,6 @@
 # adapted from a piazza post of 7/12/17 by Stephan
 # July 26, 2017
+# revised by Harry Sarkis Terkanian September, 2017
 
 import rospy
 import re
