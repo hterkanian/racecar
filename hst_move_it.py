@@ -32,12 +32,14 @@ class MoveItNode:
                     rospy.Time.now() > duration_obj + start_time
                     ):
             t = rospy.Time.now() -  start_time
-            self.msg.header.stamp.secs = t.to_sec()
-            self.msg.header.stamp.nsecs = t.to_nsec()
+            self.msg.header.stamp.secs = float(int(t.to_sec()))
+            self.msg.header.stamp.nsecs \
+                    = t.to_nsec() \
+                    - int(t.to_sec()) * 1000000000
             self.msg.drive.steering_angle = float(steering_angle)
             self.msg.drive.speed = float(speed) 
             self.cmd_pub.publish(self.msg)
-            print(self.msg)
+            # print(self.msg)
             rate = rospy.Rate(10)   #rate in Hz
             rate.sleep()
 
@@ -48,6 +50,7 @@ class MoveItNode:
                         "Enter steering angle or Q to quit: ")
             raw_steering_angle = raw_steering_angle.strip()
             if raw_steering_angle.upper() == "Q":
+                self.move( 0, 0, 1)	#stop the car before quitting
                 break
             raw_speed = raw_input("Enter speed: ")
             raw_duration = raw_input("Enter duration: ")
