@@ -16,7 +16,7 @@ class MoveItNode:
         self.msg = AckermannDriveStamped()
         self.msg.header.frame_id = '/base_link'
         self.cmd_pub = rospy.Publisher(
-                    "/vesc/ackermann_cmd_mux/input/navigation",
+                    "/ackermann_cmd_mux/input/navigation",
                     AckermannDriveStamped,
                     queue_size = 10
                     )
