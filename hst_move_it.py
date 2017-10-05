@@ -10,13 +10,13 @@ from ackermann_msgs.msg import AckermannDriveStamped
 class MoveItNode:
 
 
-    def __init__( self ):
+    def __init__(self):
         self.digit_test = re.compile('-?\d?[.]?\d$|-?\d*[.]\d?')
         # initialize the message using the arguments provided
         self.msg = AckermannDriveStamped()
         self.msg.header.frame_id = '/base_link'
         self.cmd_pub = rospy.Publisher(
-                    "/ackermann_cmd_mux/input/navigation",
+                    "/vesc//ackermann_cmd_mux/input/navigation",
                     AckermannDriveStamped,
                     queue_size = 10
                     )
