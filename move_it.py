@@ -1,3 +1,4 @@
+#!/usr/bin/python
 # adapted from a piazza post of 7/12/17 by Stephan
 # July 26, 2017
 # revised by Harry Sarkis Terkanian September, 2017
@@ -16,7 +17,7 @@ class MoveItNode:
         self.msg = AckermannDriveStamped()
         self.msg.header.frame_id = '/base_link'
         self.cmd_pub = rospy.Publisher(
-                    "/vesc//ackermann_cmd_mux/input/navigation",
+                    "/vesc/ackermann_cmd_mux/input/navigation",
                     AckermannDriveStamped,
                     queue_size = 10
                     )
