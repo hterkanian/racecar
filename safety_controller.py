@@ -3,15 +3,21 @@
 # Author Harry Terkanian
 # July 16, 2017
 #
+# most recent revision October 16, 2017
+#
 # monitor the distance to objects in front of the car; if 
 # approaching minimum safe distance slow down, if at 
 # minimum safe distance stop.
 #
 # minimum safe distance is set by  self.safe_distance
 #
-# at 3 x  minumum safe distance  speed is set to the lesser of current speed and 0.2
-# at 1.5 x minumum safe distance speed is set to the lesser of current speed and 0.1
+# at 3 x  minumum safe distance  speed reduced from 0.2 to 0.0  linearly as the
+# minumum distance approaches the minimum safe distance
 # at minimum safe distance speed is set to 0.0
+#
+# possible enhancement: change the arc being scanned for minimum distance based on the 
+# current minimum distance since the car is 30 cm wide, 
+# don't want to have a wheel clip an edge. . . 
 #
 
 import rospy
@@ -28,12 +34,12 @@ class HSTSafetyControllerNode:
 
         # state variables
         self.safe_distance  = 0.10      # about 10 cm
-	self.lidar_offset   = 0.15	# Lidar 15 cm back from front bumper
-        self.safe_speed     = 0.10
+    	self.lidar_offset   = 0.15	    # Lidar 15 cm back from front bumper
+        self.safe_speed     = 0.10      # aarbitrary
         self.first_scan_msg = True
         self.begin_scan_arc = 0         # right edge of area to scan
         self.end_scan_arc   = 0         # left edge of area to scan
-        self.min_distance   = 0.0
+        self.min_distance   = 0.0       # measured minimum distance
         self.half_safety_arc =  math.pi / 6.0
         self.nav_message    = AckermannDriveStamped() 
         self.safety_msg     = AckermannDriveStamped()
@@ -69,27 +75,29 @@ class HSTSafetyControllerNode:
             self.sixth_arc = self.half_safety_arc // self.scan_msg.angle_increment
             # determine beginning and end of range array to scan
             self.begin_scan_arc = int(self.scan_range_array_center 
-                - self.sixth_arc)   
+                - self.sixth_arc)
             self.end_scan_arc   = int(self.scan_range_array_center 
                 + self.sixth_arc)
 
         self.min_distance = min( self.scan_msg.ranges[self.begin_scan_arc 
                 : self.end_scan_arc])
 
-	self.min_safe_distance = self.safe_distance + self.lidar_offset
+    	self.min_safe_distance = self.safe_distance + self.lidar_offset
 
         if (self.min_distance < self.min_safe_distance):
             self.safety_msg.drive.speed = 0.0      # too close; stop
             self.cmd_pub.publish(self.safety_msg)
         elif (self.min_distance < 3 * self.min_safe_distance):
             self.slowdown_speed = (self.safe_speed 
-		    * (self.min_distance - self.lidar_offset) 
-		    / self.min_distance) 
+		    * (self.min_distance -  self.min_safe_distance) 
+		    / 2 * self.min_safe_distance) 
             if (self.nav_message.drive.speed > self.slowdown_speed):
                 self.safety_msg.drive.speed = self.slowdown_speed      # close; slow
                 self.cmd_pub.publish(self.safety_msg)
-        print("distance: %.2f; current speed: %.2f; safety speed: %.2f" % 
-                (self.min_distance, self.nav_message.drive.speed, self.safety_msg.drive.speed))
+        print("distance: %.2f; navigation speed: %.2f; safety speed: %.2f" % 
+                (self.min_distance, 
+                self.nav_message.drive.speed, 
+                self.safety_msg.drive.speed))
 
 if __name__ == "__main__":
     rospy.init_node("hst_safety_controller", anonymous = True)
