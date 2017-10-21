@@ -3,7 +3,9 @@
 # Author Harry Terkanian
 # July 16, 2017
 #
-# most recent revision October 16, 2017
+# most recent revision October 21, 2017
+#
+# proportional controller.
 #
 # monitor the distance to objects in front of the car; if 
 # approaching minimum safe distance slow down, if at 
@@ -15,9 +17,11 @@
 # minumum distance approaches the minimum safe distance
 # at minimum safe distance speed is set to 0.0
 #
-# possible enhancement: change the arc being scanned for minimum distance based on the 
-# current minimum distance since the car is 30 cm wide, 
-# don't want to have a wheel clip an edge. . . 
+# possible enhancements: (1) change the arc being scanned for minimum distance 
+# based on the  current minimum distance since the car is 30 cm wide, 
+# (don't want to have a wheel clip an edge. . .);
+# and (2) monitor the steering angle to see whether to look one side of center 
+# as the car is turning. 
 #
 
 import rospy
@@ -35,7 +39,8 @@ class HSTSafetyControllerNode:
         # state variables
         self.safe_distance  = 0.10      # about 10 cm
     	self.lidar_offset   = 0.15	    # Lidar 15 cm back from front bumper
-        self.safe_speed     = 0.10      # aarbitrary
+    	self.min_safe_distance = self.safe_distance + self.lidar_offset
+        self.safe_speed     = 0.20      # arbitrary
         self.first_scan_msg = True
         self.begin_scan_arc = 0         # right edge of area to scan
         self.end_scan_arc   = 0         # left edge of area to scan
@@ -45,10 +50,10 @@ class HSTSafetyControllerNode:
         self.safety_msg     = AckermannDriveStamped()
         # subscribe to lidar scan input
         rospy.Subscriber("/scan", LaserScan, self.scan_callback)
-        rospy.Subscriber("/ackermann_cmd_mux/input/teleop", 
+        rospy.Subscriber("/vesc/ackermann_cmd_mux/input/navigation", 
                 AckermannDriveStamped, self.nav_callback)
         # publisher for the safe Ackermann drive command
-        self.cmd_pub = rospy.Publisher( "/ackermann_cmd_mux/input/safety", 
+        self.cmd_pub = rospy.Publisher( "/vesc/ackermann_cmd_mux/input/safety", 
             AckermannDriveStamped, queue_size = 10 )
 
 
@@ -82,17 +87,15 @@ class HSTSafetyControllerNode:
         self.min_distance = min( self.scan_msg.ranges[self.begin_scan_arc 
                 : self.end_scan_arc])
 
-    	self.min_safe_distance = self.safe_distance + self.lidar_offset
-
         if (self.min_distance < self.min_safe_distance):
-            self.safety_msg.drive.speed = 0.0      # too close; stop
+            self.safety_msg.drive.speed = 0.0                       # too close; stop
             self.cmd_pub.publish(self.safety_msg)
-        elif (self.min_distance < 3 * self.min_safe_distance):
+        elif (self.min_distance < 3.0 * self.min_safe_distance):
             self.slowdown_speed = (self.safe_speed 
 		    * (self.min_distance -  self.min_safe_distance) 
-		    / 2 * self.min_safe_distance) 
+		    / (2.0 * self.min_safe_distance)) 
             if (self.nav_message.drive.speed > self.slowdown_speed):
-                self.safety_msg.drive.speed = self.slowdown_speed      # close; slow
+                self.safety_msg.drive.speed = self.slowdown_speed   # close; slow
                 self.cmd_pub.publish(self.safety_msg)
         print("distance: %.2f; navigation speed: %.2f; safety speed: %.2f" % 
                 (self.min_distance, 
