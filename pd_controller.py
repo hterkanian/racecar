@@ -27,17 +27,13 @@ class PDControllerNode:
         self.set_point = self.lidar_offset + self.side_of_car_offset
         self.kp                     = 1.00      # proportional gain (arbitrary)
         self.kd                     = 4.00      # derivative gain (aarbitrary)
-        self.drive_speed            = 0.10      # arbitrary
+        self.drive_speed            = 0.20      # arbitrary
         self.steering_saturation    = 0.30      # max steering angle
         self.first_scan_msg         = True      # flag for self.first_scan()
         self.debug_switch           = True      # Turns on debug print statements
 
         # lidar range data indicies for various angles
-        self.minus_90_range_index           = 0     # 90 degrees right of center
-        self.plus_90_range_index            = 0     # 90 degrees left of center
-        self.minus_60_range_index           = 0     # 60 right
-        self.plus_60_range_index            = 0     # 60 left
-        self.center_range_index             = 0     # center of range data
+        self.range_center_element           = 0     # center of range data
         self.range_elements_in_90_degrees   = 0
         self.range_elements_in_60_degrees   = 0
 
@@ -45,9 +41,9 @@ class PDControllerNode:
         self.velocity                       = 0
 
         # error
-        self.left_error_distance            = 0
-        self.left_error_slope               = 0
-        self.left_error_derivative          = 0
+        self.left_error_distance            = 0.0
+        self.left_error_slope               = 0.0
+        self.left_error_derivative          = 0.0
         self.left_error_list                = []
         self.left_error_times               = []
 
@@ -101,11 +97,6 @@ class PDControllerNode:
         self.right_error_derivative = self.approx_error_derivative(
                 self.right_error_distance, 
                 "right")
-        if self.debug_switch:
-            print("callback left error distance: %.2f" % self.left_error_distance)
-            print("callback left error derivative: %.2f" % self.left_error_derivative)
-            print("callback right error distance: %.2f" % self.right_error_distance)
-            print("callback right error derivative: %.2f" % self.right_error_derivative)
 
         #issue the AckermannDriveStamped /navigation message
         self.controller()
@@ -126,8 +117,8 @@ class PDControllerNode:
                     % (self.left_error_distance,
                     self.kp,
                     self.cmd_msg.drive.steering_angle))
-            print("controller: left error derivative: %.2f, kd: %.2d" %
-                    (self.left_error_derivative, self.kd))
+            print("controller: left error derivative: %.2f, slope: %.2f" %
+                    (self.left_error_derivative, self.left_error_slope))
 
         # cap steering angle at saturation value
         if (abs( self.cmd_msg.drive.steering_angle) > self.steering_saturation):
@@ -135,10 +126,14 @@ class PDControllerNode:
                     self.steering_saturation\
                     * math.copysign( 1, self.cmd_msg.drive.steering_angle )
         if self.debug_switch:
-            print('left error distance: %.2f, derivative: %.2f capped steering angle: %.2f' 
-                    % (self.left_error_distance, 
-                    self.left_error_derivative, 
-                    self.cmd_msg.drive.steering_angle))
+            print('controller: derivative: %.2f capped steering angle: %.2f' 
+                    % (self.left_error_derivative, self.cmd_msg.drive.steering_angle))
+ 
+        if self.left_error_slope < -1.0:
+            self.cmd_msg.drive.steering_angle =  0  #max angle of approach pi/4
+            if self.debug_switch:
+                print("controller: slope modified steering angle: %.2d" %
+                        self.cmd_msg.drive.steering_angle)
 
         self.cmd_pub.publish(self.cmd_msg)
 
@@ -147,70 +142,58 @@ class PDControllerNode:
         """called once by scan_callback on first scan msg; calculates useful
         indicies into the /scan range[] and saves values as class attributes."""
 
-        self.scan_range_array_length = len(self.scan_msg.ranges)
-        self.scan_center_range_index = self.scan_range_array_length // 2
+        length = len(self.scan_msg.ranges)
+        self.range_center_element = length // 2
 
         # calculate number of scan sweeps in 60 & 90 degree arcs
-        self.range_elements_in_90_degrees = (math.pi / 2.0)\
-                // self.scan_msg.angle_increment
-        self.range_elements_in_60_degrees = (math.pi / 3.0)\
-                // self.scan_msg.angle_increment
+        self.range_elements_in_90_degrees = int((math.pi / 2.0)\
+                // self.scan_msg.angle_increment)
+        self.range_elements_in_60_degrees = int((math.pi / 3.0)\
+                // self.scan_msg.angle_increment)
 
-        # determine range list indicies for desired agnles from center
-        self.minus_90_range_index = int(self.center_range_index
-                - self.range_elements_in_90_degrees)
-        self.plus_90_range_index  = int(self.center_range_index
-                + self.range_elements_in_90_degrees)
-        self.minus_60_range_index = int(self.center_range_index
-                - self.range_elements_in_60_degrees)
-        self.plus_60_range_index  = int(self.center_range_index
-                + self.range_elements_in_60_degrees)
         return False    # set flag so it this code executes only on first /scan msg
 
 
     def calculate_cartesian_coords(self, element):
         """ converts polar coordinates to cartesian coords tuple from 
         bearing index and distance ranges[ index ]"""
-        self.distance = self.scan_msg.ranges[element]
-        self.angle    = self.scan_msg.angle_increment \
-                * (self.center_range_index - element)
-        self.y        = self.distance * math.sin(self.angle)
-        self.x        = self.distance * math.cos(self.angle)
-        return (self.x, self.y)
+        distance = self.scan_msg.ranges[element]
+        angle    = self.scan_msg.angle_increment \
+                * (element - self.range_center_element)
+        y        = distance * math.sin(angle)
+        x        = distance * math.cos(angle)
+        return (x, y)
 
 
     def calculate_left_error(self):
-        """interprets /scan data to identify line of wall and distance from 
-                car to left wall"""
+        """interprets /scan data to identify line of left wall and distance from 
+                car to wall. returns left wall error distance and slope."""
 
         # clear the x & y arrays
-        self.left_x_array = []
-        self.left_y_array = []
+        left_x_array = []
+        left_y_array = []
 
-        for element in range( self.minus_90_range_index, 
-            self.minus_60_range_index):
+        for element in range( self.range_center_element + self.range_elements_in_60_degrees, 
+            self.range_center_element + self.range_elements_in_90_degrees):
 
             # ignore distances outside lidar range
             if (self.scan_msg.ranges[element] < self.scan_msg.range_max and
                     self.scan_msg.ranges[element] > self.scan_msg.range_min):
-                self.result = self.calculate_cartesian_coords(element)
-                self.left_x_array.append(self.result[0])
-                self.left_y_array.append(self.result[1])
+                result = self.calculate_cartesian_coords(element)
+                left_x_array.append(result[0])
+                left_y_array.append(result[1])
 
         # fit points to first order polynomial (line)
-        if (len(self.left_x_array) > 10):
-            self.line_fit_raw = np.polyfit(self.left_x_array, self.left_y_array, 1)
-            self.line_fit = np.poly1d(self.line_fit_raw) #  [intercept, slope]
+        if (len(left_x_array) > 10):
+            wall_fit = np.polyfit(left_x_array, left_y_array, 1)
+            fit = np.poly1d(wall_fit)
+            m = fit[1]
+            b = fit[0]
+            shortest_distance = math.copysign((-b / math.sqrt( 1 + (m ** 2))), 1)
             if self.debug_switch:
-                print("calc left err: slope: %.2d; intercept: %.2d" 
-                        % (self.line_fit[0], self.line_fit[1]))
-            shortest_distance = math.copysign(self.line_fit[0] 
-                    / math.sqrt( 1 + self.line_fit[1] ** 2), 1)
-            if self.debug_switch:
-                    print("calc left err: shortest distance: %.2f" 
-                            % shortest_distance)
-            return [self.set_point - shortest_distance, 
-                    self.line_fit[1]]    # [shortest distance, slope]
+                print("calc left err: shortest distance: %.2f; slope: %.2f; intercept: %.2f" 
+                        % (shortest_distance, m, b))
+            return [self.set_point - shortest_distance, m]    # [left error, slope]
         else:
             return [0, 0]       # not enough data so return zeros
 
@@ -220,36 +203,30 @@ class PDControllerNode:
                 car to right wall"""
 
         # clear the x & y arrays
-        self.right_x_array = []
-        self.right_y_array = []
+        right_x_array = []
+        right_y_array = []
 
-        for element in range(self.plus_60_range_index, 
-                self.plus_90_range_index):
+        for element in range(self.range_center_element - self.range_elements_in_90_degrees, 
+                self.range_center_element - self.range_elements_in_60_degrees):
 
             # ignore distances beyond lidar range
             if (self.scan_msg.ranges[element] < self.scan_msg.range_max and
                     self.scan_msg.ranges[element] > self.scan_msg.range_min):
-                self.result = self.calculate_cartesian_coords(element)
-                self.right_x_array.append(self.result[0])
-                self.right_y_array.append(self.result[1])
+                result = self.calculate_cartesian_coords(element)
+                right_x_array.append(result[0])
+                right_y_array.append(result[1])
 
         # fit points to first order polynomial (line)
-        if ( len(self.right_x_array) > 10):
-            self.right_line_fit_raw = np.polyfit(self.right_x_array, 
-                    self.right_y_array, 
-                    1)
-            self.right_line_fit = np.poly1d(self.right_line_fit_raw)
-            #  [intercept, slope]
+        if ( len(right_x_array) > 10):
+            wall_fit = np.polyfit(right_x_array, right_y_array, 1)
+            fit = np.poly1d(wall_fit)
+            m = fit[1]
+            b = fit[0]
+            shortest_distance = math.copysign((-b / math.sqrt(1 + (m ** 2))), 1)
             if self.debug_switch:
-                print("calc rt err: slope: %.2d; intercept: %.2d"
-                         % (self.right_line_fit[0], self.right_line_fit[1]))
-            shortest_right_distance = math.copysign(self.right_line_fit[0]
-                    / math.sqrt(1 + self.right_line_fit[1] ** 2), 1)
-            if self.debug_switch:
-                print("calc rt err: shortest distance: %.2f" 
-                        % shortest_right_distance)
-            return [self.set_point - shortest_right_distance, 
-                    self.right_line_fit[1]]     # [shortest distance, slope ]
+                print("calc rt err: shortest distance: %.2f; slope: %.2f; intercept %.2f"
+                        % (shortest_distance, m, b))
+            return [self.set_point - shortest_distance, m]     # [shortest distance, slope ]
         else:
             return [0, 0]       # not enough data
 
@@ -266,16 +243,18 @@ class PDControllerNode:
             self.left_error_times.append(t.to_nsec() / billion)
 
             if self.debug_switch:
-                print("left error lists")
+                print("approx derivative: left error lists:")
                 print(self.left_error_list)
                 print(self.left_error_times)
 
             if len(self.left_error_list) > 10:
                 self.left_error_list.pop()
                 self.left_error_times.pop()
-                temp_derivative = np.polyfit(self.left_error_times, 
-                    self.left_error_list, 
+                temp_derivative = np.polyfit(self.left_error_list, 
+                    self.left_error_times, 
                     1)
+                if self.debug_switch:
+                    print(temp_derivative)
                 return_val = (np.poly1d(temp_derivative)[1])    # meters/sec
             else:
                 return_val = 0      # not enough data yet
