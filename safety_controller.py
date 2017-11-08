@@ -13,7 +13,7 @@
 #
 # minimum safe distance is set by  self.safe_distance
 #
-# at 3 x  minumum safe distance  speed reduced from 0.2 to 0.0  linearly as the
+# at 2 x  minumum safe distance  speed reduced from 0.2 to 0.0  linearly as the
 # minumum distance approaches the minimum safe distance
 # at minimum safe distance speed is set to 0.0
 #
@@ -90,10 +90,10 @@ class HSTSafetyControllerNode:
         if (self.min_distance < self.min_safe_distance):
             self.safety_msg.drive.speed = 0.0                       # too close; stop
             self.cmd_pub.publish(self.safety_msg)
-        elif (self.min_distance < 3.0 * self.min_safe_distance):
+        elif (self.min_distance < 2.0 * self.min_safe_distance):
             self.slowdown_speed = (self.safe_speed 
 		    * (self.min_distance -  self.min_safe_distance) 
-		    / (2.0 * self.min_safe_distance)) 
+		    / (1.0 * self.min_safe_distance)) 
             if (self.nav_message.drive.speed > self.slowdown_speed):
                 self.safety_msg.drive.speed = self.slowdown_speed   # close; slow
                 self.cmd_pub.publish(self.safety_msg)
