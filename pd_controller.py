@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # Author Harry Terkanian
 # August 27, 2017
-# Most recent revision November 6, 2017
+# Most recent revision November 19, 2017
 #
 # currently calculates values for following either wall if selected 
 # (see self.follow_left_wall & self.follow_right_wall) but the controller only
@@ -12,6 +12,8 @@
 
 import rospy
 import math
+import socket
+import re
 import numpy as np
 from ackermann_msgs.msg import AckermannDriveStamped
 from sensor_msgs.msg import LaserScan
@@ -26,14 +28,15 @@ class PDControllerNode:
         self.lidar_offset           = 0.15      # lidar to side of car
         self.side_of_car_offset     = 1.00      # desired distance: car to wall
         self.set_point = self.lidar_offset + self.side_of_car_offset
-        self.kp                     = 8.00      # proportional gain (arbitrary)
-        self.kd                     = 2.50      # derivative gain (arbitrary)
+        self.kp                     = 4.00      # proportional gain (arbitrary)
+        self.kd                     = 5.00      # derivative gain (arbitrary)
         self.drive_speed            = 0.40      # arbitrary
         self.steering_saturation    = 0.30      # max steering angle
         self.first_scan_msg         = True      # flag for self.first_scan()
         self.debug_switch           = True      # Turns on debug print statements
         self.follow_left_wall       = True      # Follow this wall if True
         self.follow_right_wall      = False     # Follow this wall if True
+        self.vesc                   = ''        # set to '/vesc' if running in gazebo
 
         # lidar range data indicies for various angles calculated by first_scan()
         self.range_center_element           = 0     # center of range data
@@ -55,6 +58,14 @@ class PDControllerNode:
         self.right_error_list               = []
         self.right_error_times              = []
 
+        # are we running on a laptop (name begins with 'ww')?
+        ww = re.compile('ww')
+        m = ww.findall(socket.gethostname())
+        if m:
+            vesc = '/vesc'      # for gazebo prepend ackermann topic
+        else:
+            vesc = ''           # but not for the racecar
+
         # ==========ROS topic subscriptions & publications=====================
         # ==========subscribe to lidar /scan input=============================
         rospy.Subscriber(
@@ -63,7 +74,7 @@ class PDControllerNode:
                         self.scan_callback)
         # ==========publisher for Ackermann drive /navigation topic============
         self.cmd_pub = rospy.Publisher( 
-                        "/vesc/ackermann_cmd_mux/input/navigation", 
+                        vesc + "/ackermann_cmd_mux/input/navigation", 
                         AckermannDriveStamped, queue_size = 10)
 
 
@@ -168,7 +179,7 @@ class PDControllerNode:
                         % (shortest_distance, m, b))
             return [shortest_distance - self.set_point, m]    # [left error, slope]
         else:
-            return [0, 0]       # not enough data so return zeros
+            return [self.set_point, 0]       # not enough data so pretend all OK
 
 
     def calculate_right_error(self):
@@ -201,7 +212,7 @@ class PDControllerNode:
                         % (shortest_distance, m, b))
             return [self.set_point - shortest_distance, m]     # [shortest distance, slope ]
         else:
-            return [0, 0]       # not enough data so return zeros
+            return [self.set_point, 0]       # not enough data so pretend all OK
 
 
     def calculate_cartesian_coords(self, element):
@@ -235,8 +246,6 @@ class PDControllerNode:
                     1)
                 if self.debug_switch:
                     print("\n+++++++++\ncalc derivative left:")
-##                    print(self.left_error_list)
-##                    print(self.left_error_times)
                     print("derivative: %.2f" % np.poly1d(temp_derivative)[1])
                 return_val = (np.poly1d(temp_derivative)[1])    # meters/sec
             else:
@@ -255,8 +264,6 @@ class PDControllerNode:
                         1)
                 if self.debug_switch:
                     print("\n++++++++++\ncalc derivative right:")
-##                    print(self.right_error_times)
-##                    print(self.right_error_list)
                     print("derivative: .2f" % np.poly1d(temp_derivative)[1])
                 return_val = (np.poly1d(temp_derivative )[1])   # meters/sec
             else:
