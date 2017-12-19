@@ -3,7 +3,7 @@
 # Author Harry Terkanian
 # July 16, 2017
 #
-# most recent revision November 19, 2017
+# most recent revision November 21, 2017
 #
 # safety controller.
 #
@@ -13,8 +13,8 @@
 #
 # minimum safe distance is set by  self.safe_distance
 #
-# at 3 x  minumum safe distance speed reduced from self.safe_speed to 0.0  linearly as the
-# minumum distance approaches the minimum safe distance
+# at 3x minumum safe distance speed reduced from self.safe_speed to 0.0 
+# linearly as the minumum distance approaches the minimum safe distance
 # at minimum safe distance speed is set to 0.0
 #
 # possible enhancements: (1) change the arc being scanned for minimum distance 
@@ -24,10 +24,10 @@
 # as the car is turning. 
 #
 
-import rospy
-import math
 import socket
 import re
+import rospy
+import math
 from ackermann_msgs.msg import AckermannDriveStamped
 from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import Odometry
@@ -49,7 +49,6 @@ class HSTSafetyControllerNode:
         self.min_distance   = 0.0       # measured minimum distance
         self.vesc           = ''        # prepend ackermann msg with /vesc?
         self.half_safety_arc =  math.pi / 6.0
-        self.nav_message    = AckermannDriveStamped()
         self.safety_msg     = AckermannDriveStamped()
         self.odom_msg       = Odometry()
         self.odom_velocity  = 0.00
@@ -59,15 +58,13 @@ class HSTSafetyControllerNode:
 
         ww = re.compile('ww')
         m = ww.findall(socket.gethostname())
-        if m:
-            vesc = '/vesc'      # running on a laptop name begins with 'ww"
+        if m:               # prepend Ackermann drive cmd for gazebo
+            vesc = '/vesc'
         else:
-            vesc = ''           # running on a racecar
+            vesc = ''
 
         # subscribe to lidar scan, odometry  and navigation input messages
         rospy.Subscriber("/scan", LaserScan, self.scan_callback)
-        rospy.Subscriber(vesc + "/ackermann_cmd_mux/input/navigation", 
-                AckermannDriveStamped, self.nav_callback)
         rospy.Subscriber("/odom", Odometry, self.odom_callback)
         # publisher for the safety Ackermann drive command messages
         self.cmd_pub = rospy.Publisher( vesc + "/ackermann_cmd_mux/input/safety", 
@@ -95,7 +92,7 @@ class HSTSafetyControllerNode:
             # first scan msg, calculate arc to scan
             self.first_scan_msg = False             # thru here once only
             self.scan_range_array_length = len(self.scan_msg.ranges)
-                # range array length
+                                                    # range array length
             self.scan_range_array_center = (self.scan_range_array_length 
                     // 2)                           # range array center
             # calculate number of scans in pi/6 arc
@@ -110,24 +107,25 @@ class HSTSafetyControllerNode:
         self.min_distance = min( self.scan_msg.ranges[self.begin_scan_arc 
                 : self.end_scan_arc])
 
-        if (self.min_distance < 3.0 * self.min_safe_distance):  # getting close; slow
-            self.safety_msg.drive.speed = (self.safe_speed 
-		    * (self.min_distance -  self.min_safe_distance) 
-		    / (6.0 * self.min_safe_distance)) 
+        safety_dist = 4.0 * self.min_safe_distance
+
+        if (self.min_distance < safety_dist):                   # getting close; slow
+            self.safety_msg.drive.speed = (self.odom_velocity * 
+                    (self.min_safe_distance / safety_dist)) 
             self.slowdown_flag = True
         if (self.min_distance < self.min_safe_distance):
             self.safety_msg.drive.speed = 0.0                   # too close; stop
             self.slowdown_flag = True
         if self.slowdown_flag:
-            self.slowdown_flag = False                          #reset switch
+            self.slowdown_flag = False                          # reset switch
             if (self.odom_velocity > self.safety_msg.drive.speed):
                 self.cmd_pub.publish(self.safety_msg)
+
         if self.debug_switch:
-            print("distance: %.2f; nav speed: %.2f; odom speed: %.2f; safety speed: %.2f" % 
-                (self.min_distance, 
-                self.nav_message.drive.speed, 
-                self.odom_velocity,
-                self.safety_msg.drive.speed))
+            print("distance: %.2f; odom speed: %.2f; safety speed: %.2f" % 
+                    (self.min_distance, 
+                    self.odom_velocity,
+                    self.safety_msg.drive.speed))
 
 
 if __name__ == "__main__":
