@@ -1,7 +1,12 @@
 #!/usr/bin/python
-
-# Author: Harry Terkanian
-# July 25, 2017
+"""
+    Author: Harry Terkanian
+    July 25, 2017
+    
+    Finds objects in self.yellow_ranges in zed camera image.
+    
+    Publishes processed image and object center offset from image center (error)
+"""
 
 import rospy
 import roslib
